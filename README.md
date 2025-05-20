@@ -3,7 +3,6 @@ An open-source automotive diagnostic tool using ELM327, supporting OBD2, DTCs, a
 
 ⚠️ Disclaimer of Liability
 Libre Diagnostic is provided as an open-source software project intended for educational and diagnostic purposes only. While we aim to ensure the reliability and safety of this tool, use of this software is at your own risk.
-
 By using this application, you acknowledge and agree that:
 
 The developers, contributors, or maintainers of Libre Diagnostic are not responsible for any direct or indirect damage, including but not limited to malfunction, data corruption, ECU issues, or physical damage caused to your vehicle or connected devices.
