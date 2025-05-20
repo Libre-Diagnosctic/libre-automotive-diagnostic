@@ -30,3 +30,4 @@ In accordance with the principles of the General Data Protection Regulation (GDP
 ### 🔄 Contributions and Third-Party Code
 
 Libre Diagnostic may incorporate third-party open-source components or libraries where necessary. Each component remains subject to its own license, and attribution is provided where required. Use of any third-party library does not imply endorsement or liability from its respective author(s).
+
