@@ -31,3 +31,9 @@ In accordance with the principles of the General Data Protection Regulation (GDP
 
 Libre Diagnostic may incorporate third-party open-source components or libraries where necessary. Each component remains subject to its own license, and attribution is provided where required. Use of any third-party library does not imply endorsement or liability from its respective author(s).
 
+## Useful Links for Project Background
+
+- [Project Website]()
+- [Technical Feasibility Report](https://librediagnostic.com/wp-content/uploads/2025/04/Libre-Diagnostic-Technical-Feasibility-Report.pdf)
+- [DTC & Diagnostic Standards Report](https://librediagnostic.com/wp-content/uploads/2025/04/Libre-Diagnostic-DTC-Diagnostic-Standards-Report.pdf)
+- [Requirements & System Design](https://librediagnostic.com/wp-content/uploads/2025/05/Libre-Diagnostic-Requirements-and-System-Design.pdf)
