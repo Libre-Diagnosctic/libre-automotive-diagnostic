@@ -1,3 +1,5 @@
+#This is the main module that starts the whole GUI app
+
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from adapter import connection, initialization
