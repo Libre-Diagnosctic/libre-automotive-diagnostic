@@ -8,7 +8,25 @@ import re
 elm_mac = None
 
 # Common OBD2 device name patterns
-OBD2_NAMES = ['OBDII', 'OBD-II', 'OBD2', 'OBD', 'V-LINK', 'VLINK', 'ELM327']
+OBD2_NAMES = [
+    # Core ELM327/OBD2 terms
+    'OBDII', 'OBD-II', 'OBD2', 'OBD', 'ELM327',
+
+    # Popular and widely compatible brands
+    'OBDLink', 'OBDLink MX+', 'OBDLink LX', 'OBDLink EX', 'OBDLink SX',
+
+    # Vgate series
+    'Vgate', 'Vgate iCar Pro', 'Vgate vLinker', 'vLinker FS', 'vLinker MC+', 'vLinker FD',
+
+    # Veepeak series
+    'Veepeak', 'Veepeak OBDCheck BLE', 'Veepeak Mini',
+
+    # Other notable brands
+    'BAFX', 'Panlong', 'OBDMONSTER', 'RACOONA', 'Car2LS ScanX', 'ELS27', 'STN1110', 'STN1170', 'STN2120',
+
+    # Generic or less reliable names
+    'Micro Mechanic', 'THINMI.COM', 'KUULAA', 'xTool', 'KONNWEI', 'Mini OBD2', 'ELMconfig', 'VINT-TT55502'
+]
 
 def run_bluetoothctl_and_connect_obd2(timeout=15):
     """
