@@ -176,13 +176,13 @@ class LibreDiagnosticGUI:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-        title = tk.Label(self.main_frame, text="Diagnostic Menu", fg="darkgreen", bg='#ffffff', font=("Helvetica", 28, "bold"))
+        title = tk.Label(self.main_frame, text="Live Diagnostic Menu", fg="darkgreen", bg='#ffffff', font=("Helvetica", 28, "bold"))
         title.pack(pady=30)
 
-        live_data_btn = tk.Button(self.main_frame, text="📊 Live Data", command=self.live_data_placeholder, **button_style)
+        live_data_btn = tk.Button(self.main_frame, text="📊 Request Live Data", command=self.live_data_placeholder, **button_style)
         live_data_btn.pack(pady=10)
 
-        dtc_btn = tk.Button(self.main_frame, text="🚨 Diagnostic Trouble Codes", command=self.dtc_placeholder, **button_style)
+        dtc_btn = tk.Button(self.main_frame, text="🚨 Read and Clear DTCs", command=self.dtc_placeholder, **button_style)
         dtc_btn.pack(pady=10)
 
         brand_btn = tk.Button(self.main_frame, text="🔧 Brand Specific Diagnostic", command=self.brand_placeholder, **button_style)
