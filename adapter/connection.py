@@ -28,7 +28,7 @@ OBD2_NAMES = [
     'Micro Mechanic', 'THINMI.COM', 'KUULAA', 'xTool', 'KONNWEI', 'Mini OBD2', 'ELMconfig', 'VINT-TT55502'
 ]
 
-def run_bluetoothctl_and_connect_obd2(timeout=15):
+def run_bluetoothctl_and_connect_obd2(timeout=7):
     """
     Scans for a Bluetooth OBD2 device, pairs, trusts, connects to it,
     and stores its MAC address in the global elm_mac variable.
