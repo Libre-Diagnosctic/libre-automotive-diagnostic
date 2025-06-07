@@ -1,8 +1,9 @@
-#This is for temporary tests to check if we get any responses at all after the connection and initialization
-
+# Live Data Fetcher for GUI Integration
 import serial
 import time
 import re
+
+# --- PID Parsing Helpers ---
 
 def parse_supported_pids(hex_string):
     match = re.search(r'4100([0-9A-Fa-f]{8})', hex_string)
@@ -11,7 +12,6 @@ def parse_supported_pids(hex_string):
         return []
     bitfield = match.group(1)
     bin_string = bin(int(bitfield, 16))[2:].zfill(32)
-
     supported_pids = []
     for i, bit in enumerate(bin_string):
         if bit == '1':
@@ -25,57 +25,120 @@ def parse_rpm_response(text):
         A = int(match.group(1), 16)
         B = int(match.group(2), 16)
         return ((A * 256) + B) // 4
-    else:
-        print("⚠️ No valid RPM response found.")
-        return None
+    return None
 
-def send_obd_command(port):
+def parse_speed_response(text):
+    match = re.search(r'41\s?0D\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        return int(match.group(1), 16)
+    return None
+
+def parse_temp_response(text):
+    match = re.search(r'41\s?[0-5][0-9A-Fa-f]\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        return int(match.group(1), 16) - 40
+    return None
+
+def parse_throttle_response(text):
+    match = re.search(r'41\s?11\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        return (int(match.group(1), 16) * 100) / 255
+    return None
+
+def parse_maf_response(text):
+    match = re.search(r'41\s?10\s?([0-9A-Fa-f]{2})\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        A = int(match.group(1), 16)
+        B = int(match.group(2), 16)
+        return ((A * 256) + B) / 100.0
+    return None
+
+def parse_fuel_pressure_response(text):
+    match = re.search(r'41\s?0A\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        return int(match.group(1), 16) * 3
+    return None
+
+def parse_o2_sensor_response(text):
+    match = re.search(r'41\s?14\s?([0-9A-Fa-f]{2})', text)
+    if match:
+        return int(match.group(1), 16) / 200.0
+    return None
+
+# --- Main Function ---
+
+def fetch_live_data(port):
+    data = {
+        "RPM": None,
+        "Vehicle Speed": None,
+        "Coolant Temp": None,
+        "Throttle Position": None,
+        "Intake Temp": None,
+        "MAF Rate": None,
+        "Fuel Pressure": None,
+        "O2 Sensor (Bank 1)": None
+    }
+
     try:
         print(f"🔌 Connecting to {port}...")
         ser = serial.Serial(port, baudrate=38400, timeout=3)
         time.sleep(2)
         ser.reset_input_buffer()
 
-        # Adapter ID
-        ser.write(b'ATI\r')
-        time.sleep(0.5)
-        print("📟 Adapter ID:", ser.read_until(b'>').decode(errors="ignore").strip())
-
         # Init commands
         init_cmds = ["ATE0", "ATL0", "ATS0", "ATH1", "ATSP3"]
         for cmd in init_cmds:
             ser.write((cmd + '\r').encode())
             time.sleep(0.4)
-            print(f"> {cmd} →", ser.read_until(b'>').decode(errors="ignore").strip())
+            ser.read_until(b'>')
 
-        # Request supported PIDs
+        # Check supported PIDs
         ser.write(b'0100\r')
         time.sleep(0.5)
         raw = ser.read_until(b'>').decode(errors="ignore")
-        print(f"\n🧾 Raw Response to 0100:\n{raw.strip()}")
+        supported_pids = parse_supported_pids(raw)
+        print(f"✅ Supported PIDs: {supported_pids}")
 
-        pids = parse_supported_pids(raw)
-        print(f"\n✅ Supported PIDs:\n{pids}")
+        # Define PID map
+        pid_map = {
+            "RPM": ("010C", parse_rpm_response),
+            "Vehicle Speed": ("010D", parse_speed_response),
+            "Coolant Temp": ("0105", parse_temp_response),
+            "Throttle Position": ("0111", parse_throttle_response),
+            "Intake Temp": ("010F", parse_temp_response),
+            "MAF Rate": ("0110", parse_maf_response),
+            "Fuel Pressure": ("010A", parse_fuel_pressure_response),
+            "O2 Sensor (Bank 1)": ("0114", parse_o2_sensor_response)
+        }
 
-        # If RPM supported
-        if "010C" in pids:
-            ser.write(b'010C\r')
-            time.sleep(0.5)
-            buffer = ser.read_until(b'>')
-            print(f"\n🌀 Raw RPM Response Bytes:\n{buffer}")
-            decoded = buffer.decode(errors="ignore")
-            print(f"\n🌀 Decoded RPM Response:\n{decoded.strip()}")
+        # Request each data point
+        for label, (pid_cmd, parser) in pid_map.items():
+            if pid_cmd in supported_pids:
+                print(f"\n➡️ Requesting {label} ({pid_cmd})...")
+                ser.write((pid_cmd + '\r').encode())
+                time.sleep(0.5)
+                raw_response = ser.read_until(b'>').decode(errors="ignore")
+                print(f"🔍 Raw response for {label}:\n{raw_response.strip()}")
 
-            rpm = parse_rpm_response(decoded)
-            if rpm is not None:
-                print(f"\n✅ Parsed RPM: {rpm} RPM")
-        else:
-            print("❌ RPM PID (010C) not supported.")
+                value = parser(raw_response)
+                if value is not None:
+                    print(f"✅ {label}: {value}")
+                    data[label] = value
+                else:
+                    print(f"⚠️ Car does not support this or invalid response: {label}")
+            else:
+                print(f"❌ {label} ({pid_cmd}) not supported.")
 
         ser.close()
 
     except Exception as e:
         print(f"❌ Error: {e}")
 
+    return data
+
+# Example run
 if __name__ == "__main__":
-    send_obd_command("/dev/rfcomm0")
+    result = fetch_live_data("/dev/rfcomm0")
+    print("\n=== Final Results ===")
+    for key, val in result.items():
+        print(f"{key}: {val}")

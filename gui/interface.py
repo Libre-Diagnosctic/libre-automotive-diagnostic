@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 from adapter import connection, initialization
-from obd.dtc_lookup import fetch_live_data
+from obd.live_diagnostic_commands import fetch_live_data
 import threading
 import itertools
 import time
