@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 from adapter import connection, initialization
+from obd.live_diagnostic_commands import fetch_live_data
 import threading
 import itertools
 import time
@@ -29,7 +30,6 @@ class LibreDiagnosticGUI:
         self.canvas_bg = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
         self.canvas.bind("<Configure>", self.resize_background)
 
-        # Outer frame for border effect sized to 90% of window
         self.border_frame = tk.Frame(self.canvas, bg="#E7B08D", padx=4, pady=4)
         self.canvas_frame_id = self.canvas.create_window(
             screen_width // 2,
@@ -40,7 +40,6 @@ class LibreDiagnosticGUI:
             height=int(screen_height * 0.9)
         )
 
-        # Inner white frame
         self.main_frame = tk.Frame(self.border_frame, bg="#ffffff", padx=40, pady=40)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -54,7 +53,6 @@ class LibreDiagnosticGUI:
         self.canvas.itemconfig(self.canvas_bg, image=self.bg_image)
         self.canvas.coords(self.canvas_frame_id, event.width // 2, event.height // 2)
         self.canvas.itemconfig(self.canvas_frame_id, width=int(event.width * 0.9), height=int(event.height * 0.9))
-
 
     def build_main_screen(self):
         for widget in self.main_frame.winfo_children():
@@ -227,13 +225,6 @@ class LibreDiagnosticGUI:
         tk.Button(menu_frame, text="Back to Main Menu", command=self.build_main_screen, **self.button_style).pack(pady=(10, 5))
         tk.Button(menu_frame, text="Exit", command=self.root.quit, **self.button_style).pack(pady=(5, 10))
 
-    def dtc_placeholder(self):
-        messagebox.showinfo("DTC", "Diagnostic Trouble Codes (placeholder)")
-
-    def brand_placeholder(self):
-        messagebox.showinfo("Brand Specific", "Brand Specific Diagnostic Mode (placeholder)")
-
-
     def show_live_data_menu(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
@@ -254,12 +245,11 @@ class LibreDiagnosticGUI:
         left_frame.pack(side=tk.LEFT, padx=50, pady=10)
 
         right_frame = tk.Frame(content_frame, bg="#ffffff", width=300, height=300)
-        right_frame.pack_propagate(False)
         right_frame.pack(side=tk.LEFT, padx=50, pady=10)
 
         self.live_data_label = tk.Label(
             right_frame,
-            text="Select a data point to view",
+            text="Fetching data...",
             font=("Helvetica", 16, "bold"),
             fg="#18353F",
             bg="#ffffff",
@@ -269,19 +259,15 @@ class LibreDiagnosticGUI:
         )
         self.live_data_label.pack(expand=True)
 
-        data_points = {
-            "Engine RPM": "3000 RPM",
-            "Vehicle Speed": "75 km/h",
-            "Coolant Temp": "90°C",
-            "Throttle Position": "45%",
-            "Intake Temp": "30°C",
-            "MAF Rate": "12.5 g/s",
-            "Fuel Pressure": "300 kPa",
-            "O2 Sensor (Bank 1)": "0.85V"
-        }
+        self.loading_label = tk.Label(right_frame, text="", font=("Helvetica", 12), fg="gray", bg="#ffffff")
+        self.loading_label.pack(pady=5)
 
-        for label, value in data_points.items():
-            tk.Button(left_frame, text=label, command=lambda v=value: self.live_data_label.config(text=v), **self.button_style).pack(pady=5)
+        self.loading = True
+        threading.Thread(target=self.animate_loading, args=("Fetching Live Data",)).start()
+        threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
+
+        rerun_button = tk.Button(right_frame, text="Rerun", command=lambda: self.rerun_live_data(left_frame), **self.button_style)
+        rerun_button.pack(pady=(20, 10))
 
         back_button = tk.Button(right_frame, text="Back", command=self.show_diagnostic_menu, **self.button_style)
         back_button.pack(pady=(20, 10))
@@ -289,9 +275,34 @@ class LibreDiagnosticGUI:
         exit_button = tk.Button(right_frame, text="Exit", command=self.root.quit, **self.button_style)
         exit_button.pack()
 
+    def fetch_and_display_live_data(self, left_frame):
+        try:
+            data = fetch_live_data("/dev/rfcomm0")
 
-    def live_data_placeholder(self):
-        messagebox.showinfo("Live Data", "Live Data Mode (placeholder)")
+            def show_value(label):
+                value = data.get(label, "N/A")
+                self.live_data_label.config(text=f"{label}:\n{value}")
+
+            for widget in left_frame.winfo_children():
+                widget.destroy()
+
+            for label in data.keys():
+                tk.Button(left_frame, text=label, command=lambda l=label: show_value(l), **self.button_style).pack(pady=5)
+
+            self.live_data_label.config(text="Select a data point to view")
+
+        except Exception as e:
+            print(f"❌ Error in fetch_and_display_live_data: {e}")
+            self.live_data_label.config(text="Error fetching data.")
+        finally:
+            self.loading = False
+            self.loading_label.pack_forget()
+
+    def rerun_live_data(self, left_frame):
+        self.loading = True
+        self.loading_label.pack(pady=5)
+        threading.Thread(target=self.animate_loading, args=("Fetching Live Data",)).start()
+        threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
 
     def dtc_placeholder(self):
         messagebox.showinfo("DTC", "Diagnostic Trouble Codes (placeholder)")
@@ -304,7 +315,6 @@ class LibreDiagnosticGUI:
         x = (popup.winfo_screenwidth() // 2) - (width // 2)
         y = (popup.winfo_screenheight() // 2) - (height // 2)
         popup.geometry(f"{width}x{height}+{x}+{y}")
-
 
 if __name__ == "__main__":
     root = tk.Tk()
