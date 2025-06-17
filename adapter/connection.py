@@ -4,7 +4,7 @@ import subprocess
 import time
 import re
 
-# Global variable to store ELM327 MAC address
+# Global variable to store ELM327 MAC address.
 elm_mac = None
 
 # Common OBD2 device name patterns

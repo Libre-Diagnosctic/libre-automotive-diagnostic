@@ -1,3 +1,5 @@
+#The Graphical User Interface
+
 import tkinter as tk
 from tkinter import messagebox
 from adapter import connection, initialization
