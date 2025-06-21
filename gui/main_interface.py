@@ -108,11 +108,12 @@ class LibreDiagnosticGUI:
         self.loading_label = tk.Label(self.main_frame, text="", font=("Helvetica", 12), fg="gray", bg="#ffffff")
 
     def enter_simulation_mode(self):
+        from gui.simulator_interface import SimulationInterface
         for widget in self.main_frame.winfo_children():
             widget.destroy()
-        tk.Label(self.main_frame, text="Simulation Mode (Placeholder)", fg="purple", font=("Arial", 28)).pack(pady=30)
-        tk.Button(self.main_frame, text="Back", font=("Arial", 16), command=self.build_main_screen).pack(pady=10)
-        tk.Button(self.main_frame, text="Exit", font=("Arial", 16), command=self.root.quit).pack(pady=10)
+
+        SimulationInterface(self.root, self)
+
 
     def start_scan_thread(self):
         self.scan_button.config(state=tk.DISABLED)
