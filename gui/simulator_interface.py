@@ -1,3 +1,5 @@
+#The Simulation Graphical User Interface
+
 import tkinter as tk
 from simulator.simulator_data import SimulatedLiveData
 
