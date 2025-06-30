@@ -1,3 +1,6 @@
+#The Simulation Graphical User Interface
+#IDK if this is supposed to be one full gui module or if we want to break it down?
+
 import tkinter as tk
 from simulator.simulator_data import SimulatedLiveData
 

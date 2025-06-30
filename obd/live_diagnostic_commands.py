@@ -3,7 +3,7 @@ import serial
 import time
 import re
 
-# --- PID Parsing Helpers ---
+#PID Parsing Helpers
 
 def parse_supported_pids(hex_string):
     match = re.search(r'4100([0-9A-Fa-f]{8})', hex_string)
