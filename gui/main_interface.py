@@ -228,6 +228,15 @@ class LibreDiagnosticGUI:
         tk.Button(menu_frame, text="Back to Main Menu", command=self.build_main_screen, **self.button_style).pack(pady=(10, 5))
         tk.Button(menu_frame, text="Exit", command=self.root.quit, **self.button_style).pack(pady=(5, 10))
 
+    def dtc_placeholder(self):
+        try:
+            from gui.dtc_interface import DTCInterface
+            DTCInterface(self.root, self)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Could not load DTC screen.\n{str(e)}")
+
     def show_live_data_menu(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
@@ -306,9 +315,6 @@ class LibreDiagnosticGUI:
         self.loading_label.pack(pady=5)
         threading.Thread(target=self.animate_loading, args=("Fetching Live Data",)).start()
         threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
-
-    def dtc_placeholder(self):
-        messagebox.showinfo("DTC", "Diagnostic Trouble Codes (placeholder)")
 
     def brand_placeholder(self):
         messagebox.showinfo("Brand Specific", "Brand Specific Diagnostic Mode (placeholder)")
