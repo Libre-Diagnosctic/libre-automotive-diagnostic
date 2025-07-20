@@ -1,7 +1,7 @@
 #The Main Graphical User Interface
-
 import tkinter as tk
 from tkinter import messagebox
+from utils import log_manager
 from adapter import connection, initialization
 from obd.live_diagnostic_commands import fetch_live_data
 import threading
@@ -16,22 +16,35 @@ class LibreDiagnosticGUI:
         self.root = root
         self.root.title("Libre Diagnostic")
 
+        # 1) hide while we ask about logging
         root.withdraw()
+        from tkinter import messagebox
+        from utils import log_manager
+        enable = messagebox.askyesno(
+            "Session Logging",
+            "Enable diagnostic logging for this session?\n"
+            "Logs stay only on this computer and are wiped next launch."
+        )
+        log_manager.configure_logging(enable)
+
+        # 2) geometry
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         root.geometry(f"{screen_width}x{screen_height}+0+0")
         root.deiconify()
 
+        # 3) background + canvas
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        bg_path = os.path.join(base_path, "assets", "icons", "background.png")
+        bg_path   = os.path.join(base_path, "assets", "icons", "background.png")
         self.bg_pil_image = Image.open(bg_path)
-        self.bg_image = ImageTk.PhotoImage(self.bg_pil_image)
+        self.bg_image     = ImageTk.PhotoImage(self.bg_pil_image)
 
         self.canvas = tk.Canvas(self.root, highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas_bg = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.bg_image)
         self.canvas.bind("<Configure>", self.resize_background)
 
+        # 4) border + main frames
         self.border_frame = tk.Frame(self.canvas, bg="#E7B08D", padx=4, pady=4)
         self.canvas_frame_id = self.canvas.create_window(
             screen_width // 2,
@@ -45,7 +58,9 @@ class LibreDiagnosticGUI:
         self.main_frame = tk.Frame(self.border_frame, bg="#ffffff", padx=40, pady=40)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
+        # 5) build UI
         self.build_main_screen()
+
 
     def resize_background(self, event):
         if event.width < 2 or event.height < 2:
@@ -55,6 +70,14 @@ class LibreDiagnosticGUI:
         self.canvas.itemconfig(self.canvas_bg, image=self.bg_image)
         self.canvas.coords(self.canvas_frame_id, event.width // 2, event.height // 2)
         self.canvas.itemconfig(self.canvas_frame_id, width=int(event.width * 0.9), height=int(event.height * 0.9))
+
+    def ask_logging_preference(self):
+        answer = messagebox.askyesno(
+            "Session Logging",
+            "Enable diagnostic logging for this session?\n"
+            "Logs stay only on this computer and are wiped next launch."
+        )
+        log_manager.configure_logging(answer)
 
     def build_main_screen(self):
         for widget in self.main_frame.winfo_children():

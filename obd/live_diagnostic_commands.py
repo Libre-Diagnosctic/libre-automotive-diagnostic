@@ -2,6 +2,7 @@
 import serial
 import time
 import re
+from utils.log_manager import save_session, logging
 
 #PID Parsing Helpers
 
@@ -134,6 +135,7 @@ def fetch_live_data(port):
     except Exception as e:
         print(f"❌ Error: {e}")
 
+    save_session(data, None)
     return data
 
 # Example run
