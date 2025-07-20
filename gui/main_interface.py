@@ -340,7 +340,8 @@ class LibreDiagnosticGUI:
         threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
 
     def brand_placeholder(self):
-        messagebox.showinfo("Brand Specific", "Brand Specific Diagnostic Mode (placeholder)")
+        from gui.brand_interface import BrandInterface
+        BrandInterface(self.root, self)
 
     def center_popup(self, popup, width=600, height=200):
         popup.update_idletasks()
