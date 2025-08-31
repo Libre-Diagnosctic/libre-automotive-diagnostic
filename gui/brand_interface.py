@@ -1,10 +1,8 @@
 import tkinter as tk
 
 CAR_BRANDS = [
-    "Audi", "BMW", "Citroën", "Fiat", "Ford", "Honda", "Hyundai",
-    "Kia", "Mazda", "Mercedes‑Benz", "Nissan", "Opel/Vauxhall",
-    "Peugeot", "Renault", "Škoda", "Subaru", "Suzuki",
-    "Toyota", "Volkswagen", "Volvo"
+    "Audi", "BMW", "Ford", "Honda", "Hyundai",
+    "Kia", "Mazda", "Nissan", "Toyota", "Volkswagen"
 ]
 
 class BrandInterface:
