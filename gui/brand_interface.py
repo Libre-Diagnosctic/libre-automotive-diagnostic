@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import messagebox
+from obd.mode22_support import read_brand_dtcs, clear_brand_dtcs
 
 CAR_BRANDS = [
     "Audi", "BMW", "Ford", "Honda", "Hyundai",
@@ -14,7 +16,7 @@ class BrandInterface:
         self.build_brand_picker()
 
     # ------------------------------------------------------------------ #
-    # 1.  Brand‑selection view                                           #
+    # 1.  Brand-selection view                                           #
     # ------------------------------------------------------------------ #
     def build_brand_picker(self):
         self._clear()
@@ -74,10 +76,6 @@ class BrandInterface:
                   command=lambda: self.read_brand_dtcs(brand),
                   **self.style).pack(pady=10)
 
-        tk.Button(self.frame, text="Clear Brand Trouble Codes",
-                  command=lambda: self.clear_brand_dtcs(brand),
-                  **self.style).pack(pady=10)
-
         # ⇢  bigger gap before nav
         tk.Label(self.frame, bg="#ffffff").pack(pady=40)
 
@@ -91,19 +89,25 @@ class BrandInterface:
                   **self.style).pack(side="left", padx=10)
 
     # ------------------------------------------------------------------ #
-    # 3.  Placeholder actions                                            #
+    # 3.  Real actions with safe fallback                                #
     # ------------------------------------------------------------------ #
     def read_brand_dtcs(self, brand):
-        tk.messagebox.showinfo(
-            "Coming soon",
-            f"Read‑DTC routine for {brand} will be wired to the backend."
-        )
+        # For now we don’t pass a live adapter → safe fallback
+        dtcs = read_brand_dtcs(brand, elm_adapter=None)
+
+        if not dtcs:
+            messagebox.showinfo("DTC Result", f"No DTC found for {brand}.")
+            return
+
+        msg = "\n".join([f"{c} – {d}" for c, d in dtcs])
+        messagebox.showinfo("DTC Result", f"{brand} trouble codes:\n\n{msg}")
 
     def clear_brand_dtcs(self, brand):
-        tk.messagebox.showinfo(
-            "Coming soon",
-            f"Clear‑DTC routine for {brand} will be wired to the backend."
-        )
+        success = clear_brand_dtcs(brand, elm_adapter=None)
+        if success:
+            messagebox.showinfo("Clear DTC", f"{brand} DTCs cleared.")
+        else:
+            messagebox.showwarning("Clear DTC", f"Failed to clear {brand} DTCs.")
 
     # ------------------------------------------------------------------ #
     def _clear(self):
