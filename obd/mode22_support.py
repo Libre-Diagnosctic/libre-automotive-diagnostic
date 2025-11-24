@@ -1,8 +1,7 @@
 # obd/mode22_support.py
 """
 Mode 22 Support: Manufacturer-specific DTC retrieval.
-This module attempts to query ELM327 for brand-specific codes and
-falls back gracefully if unsupported or errors occur.
+This module attempts to query ELM327 for brand-specific codes
 """
 
 import json

@@ -1,4 +1,4 @@
-#The Main Graphical User Interface
+# The Main Graphical User Interface
 import tkinter as tk
 from tkinter import messagebox
 from utils import log_manager

@@ -2,6 +2,18 @@
 
 ## An open-source automotive diagnostic tool using ELM327, supporting OBD2, DTCs, and brand-specific commands.
 
+## 🔧 Linux installation (standalone binary)
+
+Libre Diagnostic can be run as a standalone executable on Linux without installing Python or extra dependencies.
+
+1. Go to the **Releases** section of this repository and download  
+   `libre-diagnostic-linux-x86_64.tar.gz`.
+
+2. Extract the archive:
+
+   ```bash
+   tar xzf libre-diagnostic-linux-x86_64.tar.gz
+
 ### ⚠️ Disclaimer of Liability
 
 Libre Diagnostic is provided as an open-source software project intended for educational and diagnostic purposes only. While we aim to ensure the reliability and safety of this tool, use of this software is at your own risk.
