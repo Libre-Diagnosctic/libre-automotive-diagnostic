@@ -12,7 +12,17 @@ Libre Diagnostic can be run as a standalone executable on Linux without installi
 2. Extract the archive:
 
    ```bash
-   tar xzf libre-diagnostic-linux-x86_64.tar.gz
+   tar xzf libre-diagnostic-linux-x86_64-v0.2.0.tar.gz
+
+3. Make sure the binary is executable
+
+   ```bash
+   chmod +x libre-diagnostic
+
+4. Run it
+
+   ```bash
+   ./libre-diagnostic
 
 ### ⚠️ Disclaimer of Liability
 
