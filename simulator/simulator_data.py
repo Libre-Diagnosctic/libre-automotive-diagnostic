@@ -10,5 +10,6 @@ class SimulatedLiveData:
             "Intake Temp": f"{random.randint(10, 60)} °C",
             "MAF Rate": f"{round(random.uniform(2.0, 25.0), 2)} g/s",
             "Fuel Pressure": f"{random.randint(250, 450)} kPa",
-            "O2 Sensor (Bank 1)": f"{round(random.uniform(0.1, 0.9), 2)} V"
+            "O2 Sensor (Bank 1)": f"{round(random.uniform(0.1, 0.9), 2)} V",
+            "Battery Voltage": f"{round(random.uniform(11.8, 14.4), 2)} V",
         }

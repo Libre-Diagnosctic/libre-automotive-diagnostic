@@ -47,6 +47,21 @@ class SimulationInterface:
             **self.app.button_style
         ).pack(pady=10)
 
+        tk.Button(
+            menu_frame,
+            text="Display RPM Graph",
+            command=self.open_simulated_rpm_graph,
+            **self.app.button_style
+        ).pack(pady=10)
+
+        # NEW: Battery voltage button
+        tk.Button(
+            menu_frame,
+            text="Display Battery Voltage",
+            command=self.open_simulated_battery_voltage,
+            **self.app.button_style
+        ).pack(pady=10)
+
         # Spacer
         tk.Label(menu_frame, text="", bg="#ffffff").pack(pady=20)
 
@@ -127,3 +142,96 @@ class SimulationInterface:
             command=self.root.quit,
             **self.app.button_style
         ).pack()
+
+    def open_simulated_rpm_graph(self):
+        """Open a popup window that shows a live simulated RPM graph."""
+        rpm_window = tk.Toplevel(self.root)
+        rpm_window.title("RPM Graph")
+        rpm_window.configure(bg="#ffffff")
+
+        canvas_width = 600
+        canvas_height = 300
+
+        canvas = tk.Canvas(
+            rpm_window,
+            width=canvas_width,
+            height=canvas_height,
+            bg="white",
+            highlightthickness=0,
+        )
+        canvas.pack(padx=20, pady=20)
+
+        rpm_values = []
+
+        def update_graph():
+            # Stop updating if window is closed
+            if not rpm_window.winfo_exists():
+                return
+
+            # 1) Get simulated RPM from the same generator
+            data = self.data_generator.get_data()
+            rpm_text = data.get("RPM", "0").split()[0]  # "1234 rpm" -> "1234"
+            try:
+                rpm = int(rpm_text)
+            except ValueError:
+                rpm = 0
+
+            # 2) Store last N values
+            rpm_values.append(rpm)
+            if len(rpm_values) > 60:
+                rpm_values.pop(0)
+
+            # 3) Clear and redraw graph
+            canvas.delete("all")
+
+            margin = 20
+            x0, y0 = margin, margin
+            x1, y1 = canvas_width - margin, canvas_height - margin
+            canvas.create_rectangle(x0, y0, x1, y1, outline="#cccccc")
+
+            if rpm_values:
+                max_rpm = max(1000, max(rpm_values))
+                width = x1 - x0
+                height = y1 - y0
+                step_x = width / max(len(rpm_values) - 1, 1)
+
+                points = []
+                for i, value in enumerate(rpm_values):
+                    x = x0 + i * step_x
+                    y = y1 - (value / max_rpm) * height
+                    points.extend([x, y])
+
+                if len(points) >= 4:
+                    canvas.create_line(points, fill="#005f73", width=2)
+
+            # 4) Schedule next update
+            canvas.after(500, update_graph)
+
+        update_graph()
+
+    def open_simulated_battery_voltage(self):
+        """Open a popup window that shows simulated battery voltage."""
+        voltage_window = tk.Toplevel(self.root)
+        voltage_window.title("Battery Voltage")
+        voltage_window.configure(bg="#ffffff")
+
+        label = tk.Label(
+            voltage_window,
+            text="Battery Voltage: -- V",
+            font=("Helvetica", 18, "bold"),
+            bg="#ffffff",
+            fg="#18353F",
+        )
+        label.pack(padx=20, pady=20)
+
+        def update_voltage():
+            if not voltage_window.winfo_exists():
+                return
+
+            data = self.data_generator.get_data()
+            voltage = data.get("Battery Voltage", "--")
+            label.config(text=f"Battery Voltage: {voltage}")
+            label.after(1000, update_voltage)
+
+        update_voltage()
+
