@@ -65,7 +65,10 @@ class DTCInterface:
 
     def _read_dtc_logic(self):
         try:
-            handler = DTCHandler()
+            port, baudrate ="/dev/rfcomm0", 38400
+            if self.parent_gui.usb_device:
+                port, baudrate = self.parent_gui.usb_device
+            handler = DTCHandler(port, baudrate)
             if handler.connect():
                 codes = handler.read_dtc()
                 handler.disconnect()
