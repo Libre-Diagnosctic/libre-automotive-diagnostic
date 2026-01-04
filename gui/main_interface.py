@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import messagebox
 from utils import log_manager
-from adapter import connection, initialization
+from adapter import connection, initialization, usb
 from obd.live_diagnostic_commands import fetch_live_data
 import threading
 import itertools
@@ -13,6 +13,7 @@ import os
 
 class LibreDiagnosticGUI:
     def __init__(self, root):
+        self.usb_device = None
         self.root = root
         self.root.title("Libre Diagnostic")
 
@@ -117,7 +118,10 @@ class LibreDiagnosticGUI:
         self.sim_button = tk.Button(self.main_frame, text="Enter Simulation Mode", command=self.enter_simulation_mode, **self.button_style)
         self.sim_button.pack(pady=(10, 2))
 
-        self.scan_button = tk.Button(self.main_frame, text="Scan for ELM327", command=self.start_scan_thread, **self.button_style)
+        self.scan_button = tk.Button(self.main_frame, text="Use USB Port", command=self.use_usb_port, **self.button_style)
+        self.scan_button.pack(pady=(10, 2))
+
+        self.scan_button = tk.Button(self.main_frame, text="Scan for Bluetooth ELM327", command=self.start_scan_thread, **self.button_style)
         self.scan_button.pack(pady=(10, 2))
 
         self.connect_button = tk.Button(self.main_frame, text="Connect to ELM327", command=self.start_bind_thread, **self.button_style)
@@ -137,6 +141,13 @@ class LibreDiagnosticGUI:
 
         SimulationInterface(self.root, self)
 
+    def use_usb_port(self):
+        usb_device = usb.search_compatible_usb_device()
+        if usb_device[0] is None:
+            messagebox.showwarning("Can't use USB device", usb_device[1])
+            return
+        self.usb_device = usb_device
+        self.show_diagnostic_menu()
 
     def start_scan_thread(self):
         self.scan_button.config(state=tk.DISABLED)
@@ -312,7 +323,10 @@ class LibreDiagnosticGUI:
 
     def fetch_and_display_live_data(self, left_frame):
         try:
-            data = fetch_live_data("/dev/rfcomm0")
+            port, baudrate ="/dev/rfcomm0", 38400
+            if self.usb_device:
+                port, baudrate = self.usb_device
+            data = fetch_live_data(port, baudrate)
 
             def show_value(label):
                 value = data.get(label, "N/A")

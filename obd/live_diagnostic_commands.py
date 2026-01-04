@@ -1,4 +1,5 @@
 # Live Data Fetcher for GUI Integration
+import errno
 import serial
 import time
 import re
@@ -68,7 +69,7 @@ def parse_o2_sensor_response(text):
 
 # --- Main Function ---
 
-def fetch_live_data(port):
+def fetch_live_data(port, baudrate):
     data = {
         "RPM": None,
         "Vehicle Speed": None,
@@ -82,7 +83,7 @@ def fetch_live_data(port):
 
     try:
         print(f"🔌 Connecting to {port}...")
-        ser = serial.Serial(port, baudrate=38400, timeout=3)
+        ser = serial.Serial(port, baudrate=baudrate, timeout=3)
         time.sleep(2)
         ser.reset_input_buffer()
 
@@ -132,15 +133,23 @@ def fetch_live_data(port):
 
         ser.close()
 
+    except OSError as e:
+        msg = f"❌ Error: {e}"
+        if e.errno == errno.EBUSY:
+            msg = f"❌ Error: Device is busy! Make sure no other application is using port: {port}"
+        print(msg)
     except Exception as e:
         print(f"❌ Error: {e}")
+    # TODO: Propagate these errors to the UI
+
+
 
     save_session(data, None)
     return data
 
 # Example run
 if __name__ == "__main__":
-    result = fetch_live_data("/dev/rfcomm0")
+    result = fetch_live_data("/dev/rfcomm0", 38400)
     print("\n=== Final Results ===")
     for key, val in result.items():
         print(f"{key}: {val}")
