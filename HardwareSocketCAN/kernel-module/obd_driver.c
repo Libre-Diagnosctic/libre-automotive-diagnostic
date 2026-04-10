@@ -1,3 +1,13 @@
+/**
+ * PROJECT: K-OBD-PI-AUTOMOTIVE
+ * MODULE: obd_driver.c
+ * AUTHOR: Libre-Diagnostic
+ * STANDARD: MISRA-C:2012 Compliance
+ * DESCRIPTION: High-performance automotive gateway for Raspberry Pi.
+ * REVISION: 1.0.0
+ */
+
+
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>

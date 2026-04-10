@@ -1,3 +1,11 @@
+/**
+ * PROJECT: K-OBD-PI-AUTOMOTIVE
+ * MODULE: can_raw_receiver.c
+ * AUTHOR: Libre-Diagnostic
+ * STANDARD: MISRA-C:2012 Compliance
+ * DESCRIPTION: High-performance automotive gateway for Raspberry Pi.
+ * REVISION: 1.0.0
+ */
 /*
  * Module: can_raw_receiver.c
  * Description: Low-level raw frame acquisition via SocketCAN.
