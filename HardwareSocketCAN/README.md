@@ -17,3 +17,17 @@ A professional Linux Kernel Module (LKM) and user-space toolset for high-perform
 ```bash
 chmod +x scripts/start_obd.sh
 sudo ./scripts/start_obd.sh
+
+# Hardware SocketCAN Implementation
+This sub-module provides a low-level interface to the vehicle's CAN bus using the Linux SocketCAN stack.
+
+## Goal
+Implement basic CAN interface to read raw vehicle frames.
+
+## Usage
+1. Bring up the interface:
+   `sudo ip link set can0 up type can bitrate 500000`
+2. Compile:
+   `make`
+3. Run:
+   `./can_raw_receiver`
