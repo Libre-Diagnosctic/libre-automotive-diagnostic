@@ -1,0 +1,10 @@
+# Optional dependencies for the SocketCAN transport backend (Linux only).
+# The core app (GUI + ELM327) does not need these; install when using SocketCAN:
+#     pip install -r requirements-socketcan.txt
+#
+# Also load the kernel module once per boot:  sudo modprobe can_isotp
+python-can~=4.3
+can-isotp~=2.0
+
+# Test runner (used by both the unit tests and the vcan integration tests):
+pytest>=8.0

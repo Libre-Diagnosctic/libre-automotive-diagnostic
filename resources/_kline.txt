@@ -1,0 +1,502 @@
+K-Line & ISO 9141 Automotive Diagnostics
+
+                   A Technical Reference for 1990s ­ 2000s OBD-I / OBD-II Systems
+
+                                                VIN Readout · DTC Retrieval · Protocol Stack Analysis
+
+K-Line / ISO 9141 Automotive Diagnostics (1990s­
+2000s)
+
+VIN Readout and DTC Retrieval via OBD-I / OBD-II
+
+1. Historical Context
+
+Region           Timeline                       Standard
+USA (petrol)     OBD-II mandatory from 1996 MY  SAE J1962 connector + one of 5 signalling protocols
+USA (diesel)     OBD-II from 2004 MY            Same as above
+Europe (petrol)  EOBD from 2001 MY              ISO 9141-2 / ISO 14230-4 (KWP2000) / ISO 15765-4 (CAN)
+Europe (diesel)  EOBD from 2003­2004 MY         Same, CAN became mandatory on all new vehicles from 2008 MY
+
+The five OBD-II signalling protocols you will meet on the J1962 (16-pin) connector are:
+
+         1. SAE J1850 VPW -- GM, 10.4 kbps, single wire on pin 2
+         2. SAE J1850 PWM -- Ford, 41.6 kbps, differential pair pins 2/10
+         3. ISO 9141-2 -- K-line (pin 7), optional L-line (pin 15), 10.4 kbps
+         4. ISO 14230-4 KWP2000 -- Same physical layer as 9141-2, richer framing
+         5. ISO 15765-4 CAN -- Pins 6/14, 250 or 500 kbps (post-2003 mostly)
+
+This document focuses on protocols 3 and 4 -- the K-line family -- which dominated European petrol cars from the mid-
+90s to the late 2000s and were also used by Chrysler/Jeep and many Asian makes for OBD-II in the US.
+
+2. Physical Layer
+
+The K-line (and L-line)
+
+              K-line (ISO 9141 "Kommunikationsleitung"): single-wire, bidirectional, half-duplex serial line.
+              L-line: a second, unidirectional wire used only for the wake-up pattern. Optional in OBD-II (most post-2000
+              implementations don't use it).
+              Idle state: pulled up to battery voltage (~12 V) through a resistor inside the ECU.
+              Logic "1" = Vbatt, Logic "0" = pulled to ground by an open-drain driver.
+              Because both sides share one wire, each transmitter sees its own transmission echoed back -- drivers must
+              read back what they send to detect collisions.
+              Typical baud rate after init: 10,400 bps (8N1 UART framing: 1 start, 8 data, no parity, 1 stop).
+
+Connector pinout (SAE J1962)
+Pin               Function
+
+4                 Chassis ground
+
+5                 Signal ground
+
+7                 K-line
+
+15                L-line (if used)
+
+16                Battery positive (+12 V)
+
+Hardware interface (bench/DIY)
+
+The classic interface chip is the ST L9637D -- a single-chip K-line transceiver that handles the level shifting, open-drain
+drive, and 5 V  12 V logic conversion. Other options: MC33290, MCP2025 (which also does LIN). A "dumb" ELM327 clone
+does this in firmware behind an FTDI/CH340 USB-serial bridge.
+
+3. Protocol Stack Overview
+
+
+
+ Application: SAE J1979 OBD-II services (Modes 01­0A) 
+
+            Manufacturer-specific UDS-like services 
+
+
+
+ Transport: ISO 9141-2 | ISO 14230-2 (KWP2000) 
+
+
+
+ Data link: ISO 14230-1 / ISO 9141 framing           
+
+
+
+ Physical:  ISO 9141 K-line (shared PHY)             
+
+
+
+ISO 9141-2 is the original, bare-bones OBD-II profile. ISO 14230 (KWP2000) is backward-compatible at the PHY but
+adds richer framing, addressing modes, a fast-init option, and timing parameters that can be negotiated. In practice most
+2000s European cars speak KWP2000 with 5-baud or fast init.
+
+4. Initialization
+
+Before any data can be exchanged, the tester must "wake" the ECU. There are two recognised methods:
+
+4.1 5-baud init (both ISO 9141-2 and KWP2000)
+
+The tester sends the target address byte 0x33 at 5 baud (each bit = 200 ms; the full start/8 data/stop frame takes ~2
+seconds). Then:
+
+Tester  ECU : 0x33 @ 5 baud         (2 s)
+
+ECU  Tester: 0x55 @ 10400 baud      (sync byte, within W1 = 60­300 ms)
+
+ECU  Tester: KW1                    (keyword 1, W2 = 5­20 ms later)
+
+ECU  Tester: KW2                    (keyword 2, W3 = 0­20 ms later)
+
+Tester  ECU : ~KW2 (bitwise inverted, W4 = 25­50 ms later)
+
+ECU  Tester: ~0x33 = 0xCC           (W5 = 25­50 ms)
+
+Keyword interpretation:
+
+Keyword pair (KW1, KW2)                                                 Meaning
+ 0x08 0x08                                                              ISO 9141-2
+ 0x94 0x94                                                              ISO 9141-2 (some Japanese)
+ 0xE9 0x8F , 0x6B 0x8F , 0x6D 0x8F                                      KWP2000 variants
+
+Technically the keyword bytes encode length format, header type, and timing profile -- worth decoding if you're writing a
+diagnostic stack from scratch.
+
+4.2 Fast init (KWP2000 only)
+
+Faster and more common from mid-2000s onward:
+   K-line low for 25 ms (Tinil)
+   K-line high for 25 ms (Twup)
+   Tester sends StartCommunication request (81 11 F1 81 04) @ 10400 baud
+   ECU replies StartCommunication positive response
+
+Total wake time: ~50 ms vs. 2+ seconds for 5-baud. No address byte is pre-shared; addressing is in the subsequent
+message headers.
+
+4.3 Tester Present (keep-alive)
+
+After init, the ECU will drop the session after P3max  5 seconds of silence. To keep it alive, send a TesterPresent
+message (SID 0x3E in KWP2000) every ~2 s, or simply send real requests frequently.
+
+5. Message Framing
+
+5.1 ISO 9141-2 (fixed header)
+
+   
+    FMT  TGT  SRC  DATA (1..7)  CS 
+   
+
+              FMT = 0x68 for request, 0x48 for response
+              TGT = 0x6A (ECU, OBD functional) for request; 0x6B (tester) for response
+              SRC = 0xF1 (tester) for request; ECU address (0x10 = engine, 0x18 = trans, ...) for response
+              DATA = Service ID + parameters (up to 7 data bytes)
+              CS = 8-bit sum of all preceding bytes, mod 256
+
+Example -- OBD-II Mode 01 PID 0C (engine RPM) request:
+
+   68 6A F1 01 0C C0
+   
+         checksum (0x68+0x6A+0xF1+0x01+0x0C = 0x1C0  0xC0)
+        PID: 0x0C
+       SID: 0x01 (Show current data)
+      source = tester
+     target = ECU functional
+    format
+
+5.2 KWP2000 (ISO 14230) -- flexible header
+
+Format byte structure:
+
+bit:  76543210
+
+      Am1 Am0 L5 L4 L3 L2 L1 L0
+
+        
+
+        length (0 = length in separate byte)
+
+      
+
+       addressing mode:
+
+        00 = no addressing in header (header = FMT + LEN?)
+
+        10 = physical addressing (point-to-point)
+
+        11 = functional addressing (broadcast OBD style)
+
+Three resulting header layouts:
+
+Type                             Header bytes                 Use
+No address, length in FMT         FMT DATA... CS              Legacy, rare in OBD
+Address + length in FMT           FMT TGT SRC DATA... CS      Common short frames
+Address + separate length         FMT TGT SRC LEN DATA... CS  Long frames (>63 bytes)
+
+For OBD-II over KWP2000 (ISO 14230-4), the request is typically functionally addressed:
+   C2 33 F1 01 00 E7
+   
+         checksum
+        PID 0x00
+       SID 0x01
+      SRC = tester (0xF1)
+     TGT = 0x33 (functional OBD)
+    FMT = 0xC2  functional, length=2
+
+The response uses physical addressing from the specific ECU that answered:
+
+   82 F1 10 41 00 BE 1F B8 11 ??
+         
+        supported PIDs 
+        response SID (SID + 0x40)
+       SRC = engine ECU (0x10)
+      TGT = tester
+     FMT = 0x82  physical, length=2
+    (actually 0x82: 10000010)
+
+5.3 Timing parameters
+
+Param  Meaning                                                              Typical (ms)
+P1     Inter-byte, ECU Tx                                                   0­20
+P2     ECU response after tester request                                    25­50
+P3     Inter-message, tester Tx                                             55­5000
+P4     Inter-byte, tester Tx                                                5­20
+
+Violate these and the ECU silently drops the session -- a common cause of flaky home-made tools.
+
+6. OBD-II Service Modes (SAE J1979)
+
+SID    Function
+
+01     Current powertrain data (live PIDs)
+
+02     Freeze-frame data (at time of DTC)
+
+03     Stored (confirmed) DTCs  emissions-related
+
+04     Clear DTCs and stored diagnostic info
+
+05     O sensor monitoring test results (non-CAN)
+
+06     On-board monitoring test results
+
+07     Pending DTCs (detected but not yet confirmed)
+
+08     Request control of on-board system
+
+09     Vehicle information (incl. VIN)
+
+0A     Permanent DTCs (added later, post ~2010)
+
+Positive responses add 0x40 to the SID (Mode 03  0x43, Mode 09  0x49). Negative responses start with 7F , followed
+by the rejected SID, and a reason code (e.g. 0x11 = service not supported, 0x12 = sub-function not supported, 0x78 =
+busy/response pending).
+
+7. Reading DTCs -- Mode 03
+
+Request
+
+   Request PDU: 03
+
+On ISO 9141-2:
+
+   68 6A F1 03 C6
+On KWP2000 functional:
+
+   C1 33 F1 03 E8
+
+Response
+
+Each DTC is two bytes. The ECU returns as many DTCs as fit in one frame, then continues in subsequent frames until all
+are sent. On ISO 9141-2 a frame can hold up to 3 DTCs (6 bytes); KWP2000 with separate length byte can carry more.
+
+Example -- two DTCs stored:
+
+   48 6B 10 43 01 33 04 20 C8
+         
+       DTC1 DTC2  checksum
+       response SID 0x43
+      ECU = engine
+     tester
+    format
+
+DTC byte  code decoding (SAE J2012)
+
+Two bytes = 16 bits:
+
+Byte 1             Byte 2
+
+
+
+A1 A0 B1 B0 C3 C2 C1 C0 D3 D2 D1 D0 E3 E2 E1 E0 
+
+
+
+    
+
+1st           2nd       3rd  4th          5th
+
+char    digit      digit     digit        digit
+
+First character (bits 15­14): - 00  P (Powertrain) - 01  C (Chassis) - 10  B (Body) - 11  U (Network/User)
+Second character (bits 13­12): - 00  0 (generic SAE) - 01  1 (manufacturer-specific) - 10  2 (generic, newer) - 11
+ 3 (reserved/manufacturer)
+Remaining digits: straight hex.
+Worked examples:
+
+Bytes              Binary (byte 1)               Decoded
+ 01 33             00000001 = 00 00 0001         P0133 (O sensor slow response)
+ 04 20             00000100 = 00 00 0100         P0420 (catalyst efficiency)
+ 43 01             01000011 = 01 00 0011         C0301 (chassis, manufacturer)
+ 80 02             10000000 = 10 00 0000         B0002 (body)
+
+Pending DTCs (Mode 07) and permanent DTCs (Mode 0A) use the same encoding.
+
+Clearing DTCs -- Mode 04
+
+Request: 04         68 6A F1 04 C7
+Response: 44        positive ack
+
+This clears stored DTCs, freeze frame, MIL state, readiness monitors, and O sensor test results. Don't use it as a
+diagnostic short-cut -- it resets monitors and can prevent re-inspection for 1­2 drive cycles.
+
+8. Reading the VIN -- Mode 09 PID 02
+
+Request
+
+   Request PDU: 09 02
+
+ISO 9141-2:
+
+   68 6A F1 09 02 CE
+KWP2000 functional:
+
+   C2 33 F1 09 02 F1
+
+Response -- multi-frame
+
+The VIN is 17 ASCII characters. Because K-line frames cap at ~7 data bytes (9141-2) or have per-byte timing overhead,
+the response is split across multiple frames. J1979 formalises this with a message counter in the response.
+Response structure per J1979 for non-CAN:
+
+49 02 NN <data bytes>
+
+   message number (01, 02, 03, ...)
+  PID 02 (VIN)
+ response SID (0x49 = 0x09 + 0x40)
+
+On ISO 9141-2, the VIN comes back as 5 frames, each carrying 4 VIN bytes (20 bytes total -- first 3 are padding 0x00
+to align to 20, leaving 17 ASCII chars):
+
+Frame 1: 48 6B 10 49 02 01 00 00 00 31 CS   pad pad pad '1'
+Frame 2: 48 6B 10 49 02 02 47 31 4A 43 CS   'G' '1' 'J' 'C'
+Frame 3: 48 6B 10 49 02 03 35 32 34 34 CS   '5' '2' '4' '4'
+Frame 4: 48 6B 10 49 02 04 52 37 32 35 CS   'R' '7' '2' '5'
+Frame 5: 48 6B 10 49 02 05 32 35 32 38 CS   '2' '5' '2' '8'
+
+Concatenating the ASCII bytes (dropping the 3 padding zeros): 1G1JC5244R7252528  17-char VIN.
+
+Note: Some early-90s ECUs don't implement Mode 09 at all, or only return "Supported PIDs for Mode 09" (PID 00) without the
+VIN (PID 02). EOBD mandated VIN reporting only from 2002 MY petrol / 2004 MY diesel, and US OBD-II from 2005 MY
+onwards. Pre-mandate cars often require manufacturer-specific services to read the VIN -- e.g. VAG's 0x1A
+ReadECUIdentification with sub-function 0x90 .
+
+KWP2000 alternative -- ReadDataByLocalIdentifier
+
+On many 2000s European cars you can read the VIN (and much else) via KWP2000 service 0x21
+ReadDataByLocalIdentifier or 0x1A ReadECUIdentification:
+
+Request: 1A 90         read identification record 0x90 (VIN on VAG)
+
+Response: 5A 90 <17 ASCII VIN bytes>
+
+9. Practical Session -- End-to-End
+
+Reading the VIN on a typical 2003 EOBD car speaking KWP2000, from a cold bus:
+         1. Fast init - K-line low 25 ms  high 25 ms - Send 81 11 F1 81 04 (StartCommunication, TGT=0x11, SRC=0xF1) -
+              Expect 83 F1 11 C1 EA 8F 5F (positive, KW= EA 8F )
+         2. Optional: Start diagnostic session - Send 82 11 F1 10 81 FF (StartDiagnosticSession "default") - Expect 82 F1
+
+                11 50 81 XX
+
+         3. Request VIN - Send C2 33 F1 09 02 F1 (Mode 09 PID 02, functional) - Expect 5 response frames as above
+         4. Request DTCs - Send C1 33 F1 03 E8 (Mode 03) - Parse 2-byte DTCs from response
+         5. Keep alive - Every ~2 s, send 80 11 F1 01 3E 01 (TesterPresent) or any valid request
+         6. Tear down (polite) - Send 81 11 F1 82 05 (StopCommunication)
+
+10. OBD-I and Other Pre-Standardisation Protocols
+
+Before OBD-II harmonised things in 1996, every manufacturer did its own thing. Rough cheat-sheet:
+Mfr / family   Protocol                             Notes
+Ford EEC-IV    STO/STI "Self-Test", no serial       Jumper pin, count MIL flashes  codes
+GM ALDL        8192 baud serial on pin M            Some early 160 baud
+Chrysler SCI   Async serial, 7812/62500 baud        Two-wire, transmit/receive separate
+VAG KWP1281    K-line, 5-baud init, block-oriented  Used by VW/Audi ~1990­2001, block counter, per-byte handshake!
+VAG KWP2000    ISO 14230 on K-line                  ~2000­2008 petrol, 2006­2010 diesel
+BMW DS2        K-line, 9600 baud, BMW proprietary   E36/E38/E39 era non-engine modules
+Mercedes       K-line, KWP2000 variants             Also D2B/CAN on later chassis
+Honda/Toyota   Short pins to flash CEL on OBD-I     Honda used serial on a few ECUs
+Japan JOBD     Essentially OBD-II from ~2003 MY     Many Japanese cars used ISO 9141-2
+
+KWP1281 deserves special mention: it looks like K-line KWP2000, but each byte sent must be acknowledged with its
+inverted value by the receiver before the next byte goes out. It's very timing-sensitive -- USB­serial latency alone kills
+most off-the-shelf adapters. This is why the VAG community built dedicated tools like VAG-COM / Ross-Tech.
+
+11. Hardware Cookbook
+
+Minimal K-line interface (bench or embedded):
+
+  +12V (Vbatt)
+
+  
+
+   510 pull-up (sometimes internal to ECU)
+
+  
+
+ K-line (to pin 7 of J1962)
+
+  
+
+  
+
+   L9637 (or MC33290, MCP2025)
+
+  
+
+   TTL 5 V (RX/TX split)
+
+  
+
+  
+
+   MCU  UART @ 10400 8N1
+
+  
+
+Notes: - Listen for your own echo on TX -- drop it before processing. - Use open-drain / 5 V tolerant pins on the
+MCU side of the transceiver. - For 5-baud init, bit-bang the 0x33 manually, then switch the UART to 10400 baud before
+the ECU's sync arrives (~60 ms window). - For fast init, bit-bang the 25/25 ms low/high, then immediately send the
+StartCommunication frame at 10400 baud. - Checksum is trivial: sum(all preceding bytes) & 0xFF .
+
+Popular tools
+
+Tool                      Works on                  Notes
+ELM327 (real v1.5+ chip)  All 5 OBD-II protocols    AT commands, auto protocol detection. Clones vary wildly.
+VAG-COM/VCDS              VW/Audi/Seat/Skoda        KWP1281, KWP2000, UDS over CAN
+OP-COM                    Opel/Vauxhall             KWP2000
+DIY Arduino + L9637D      Anything K-line           Best for learning, worst for speed
+BMW INPA/NCS Expert       BMW                       DS2/K-line then D-CAN
+
+12. Common Gotchas
+
+              Echo handling: On K-line everything you transmit appears on your own RX. If your stack doesn't strip the echo
+              you'll "see" your request as the reply.
+              Timing: KWP2000 timing is strict. A 100 ms delay where 50 ms was specified means session drop.
+              Multiple ECUs: Functional addressing (0x33) means several ECUs may reply. Responses arrive serially, gated
+              by P2min/P2max. Your parser must handle N concurrent streams discriminated by the SRC byte.
+              Protocol auto-detect: ELM327's ATSP0 works most of the time but fails on weird manufacturer-specific speeds
+              (e.g. VAG KWP1281 at 10400 with inverted-byte ACK). Set the protocol explicitly when you know it.
+              DTCs vs Freeze frame: Mode 03 returns current stored codes. Freeze frame (Mode 02) captures live data at
+the moment the first confirmed DTC set -- it does not update for subsequent DTCs.
+
+VIN pre-2002: Don't assume Mode 09 PID 02 works. Check Mode 09 PID 00 (supported PIDs) first. If no PID 02,
+fall back to manufacturer-specific ID services.
+Permanent DTCs (Mode 0A): Only on newer cars (~post-2010). They cannot be cleared by Mode 04 -- they
+only clear themselves after the monitor runs and passes over several drive cycles. This is the anti-"clear the
+code before inspection" countermeasure.
+
+13. Minimal Byte-Level Reference Card
+
+# Wake:        send 0x33 @ 5 baud, wait 0x55 KW1 KW2, reply ~KW2, wait ~0x33
+ 5-baud init:  25 ms low, 25 ms high, send 81 11 F1 81 04
+ Fast init:
+
+# Service requests (over ISO 9141-2 / KWP2000 functional):
+
+Mode 01 PID 0C (RPM): 01 0C     41 0C XX XX (rpm = (XX*256+XX)/4)
+
+Mode 01 PID 0D (speed): 01 0D   41 0D XX                    (km/h)
+
+Mode 03 (stored DTCs): 03       43 [DTC]*
+
+Mode 04 (clear DTCs): 04        44
+
+Mode 07 (pending DTCs): 07      47 [DTC]*
+
+Mode 09 PID 02 (VIN): 09 02     49 02 NN [4 ASCII] (5 frames)
+
+Mode 09 PID 0A (ECU): 09 0A     49 0A NN [ASCII] (ECU name)
+
+# DTC decode:
+ byte1 bits 7:6  P/C/B/U
+ byte1 bits 5:4  0/1/2/3
+ byte1 bits 3:0  hex digit
+ byte2 bits 7:4  hex digit
+ byte2 bits 3:0  hex digit
+
+14. Further Reading
+
+              SAE J1962 -- J1962 connector pinout
+              SAE J1979 -- OBD-II services & PIDs
+              SAE J2012 -- DTC format
+              ISO 9141-2 -- OBD-II K-line baseline
+              ISO 14230-1/-2/-3/-4 -- KWP2000 physical, data link, application, OBD profile
+              ISO 15031-5 -- Emissions-related OBD communication (re-issue of J1979 content)
+              Andy Whittaker's site / Opendiag archives -- classic DIY K-line references
+              Ross-Tech wiki -- most complete public documentation of VAG's K-line dialects
+

@@ -4,12 +4,9 @@ from tkinter import messagebox
 from utils import log_manager
 from adapter import connection, initialization
 from obd.live_diagnostic_commands import fetch_live_data
-import threading
-import itertools
-import time
-import getpass
 from PIL import Image, ImageTk
 import os
+from utils.ui_worker import run_async, TkSpinner
 
 class LibreDiagnosticGUI:
     def __init__(self, root):
@@ -140,22 +137,26 @@ class LibreDiagnosticGUI:
 
     def start_scan_thread(self):
         self.scan_button.config(state=tk.DISABLED)
-        self.loading = True
         self.loading_label.pack(pady=5)
-        threading.Thread(target=self.animate_loading, args=("Scanning",)).start()
-        threading.Thread(target=self.scan_and_connect).start()
+        self._spinner = TkSpinner(self.root, self.loading_label, "Scanning")
+        self._spinner.start()
+        run_async(
+            self.root,
+            work=connection.run_bluetoothctl_and_connect_obd2,
+            on_success=self._on_scan_result,
+            on_error=lambda e: messagebox.showerror("Scan Error", str(e)),
+            on_done=self._stop_spinner,
+        )
 
-    def animate_loading(self, task_name):
-        for frame in itertools.cycle(['\u280b','\u2819','\u2839','\u2838','\u283c','\u2834','\u2826','\u2827','\u2807','\u280f']):
-            if not self.loading or not self.loading_label.winfo_exists(): break
-            try: self.loading_label.config(text=f"{task_name}... {frame}")
-            except tk.TclError: break
-            time.sleep(0.1)
+    def _stop_spinner(self):
+        spinner = getattr(self, "_spinner", None)
+        if spinner is not None:
+            spinner.stop()
+        if self.loading_label.winfo_exists():
+            self.loading_label.pack_forget()
 
-    def scan_and_connect(self):
-        mac = connection.run_bluetoothctl_and_connect_obd2()
-        self.loading = False
-        self.loading_label.pack_forget()
+    def _on_scan_result(self, mac):
+        # Runs on the Tk main thread (dispatched via root.after) \u2014 safe to touch widgets.
         if mac:
             popup = tk.Toplevel(self.root)
             popup.title("Device Found")
@@ -181,15 +182,22 @@ class LibreDiagnosticGUI:
             self.scan_button.config(state=tk.NORMAL)
 
     def start_bind_thread(self):
-        sudo_pass = self.ask_sudo_password()
         if not connection.elm_mac:
             messagebox.showwarning("Not Connected", "Please scan and connect to a device first.")
             return
-        if sudo_pass:
-            self.loading = True
-            self.loading_label.pack(pady=5)
-            threading.Thread(target=self.animate_loading, args=("Binding",)).start()
-            threading.Thread(target=self.bind_device, args=(sudo_pass,)).start()
+        sudo_pass = self.ask_sudo_password()
+        if not sudo_pass:
+            return
+        self.loading_label.pack(pady=5)
+        self._spinner = TkSpinner(self.root, self.loading_label, "Binding")
+        self._spinner.start()
+        run_async(
+            self.root,
+            work=lambda: initialization.run_rfcomm_binding(connection.elm_mac, sudo_pass),
+            on_success=self._on_bind_result,
+            on_error=lambda e: messagebox.showerror("Binding Failed", str(e)),
+            on_done=self._stop_spinner,
+        )
 
     def ask_sudo_password(self):
         popup = tk.Toplevel(self.root)
@@ -214,16 +222,15 @@ class LibreDiagnosticGUI:
         self.root.wait_window(popup)
         return result["value"]
 
-    def bind_device(self, sudo_pass):
-        getpass.getpass = lambda prompt='': sudo_pass
-        success = initialization.run_rfcomm_binding(connection.elm_mac, sudo_pass)
-        self.loading = False
-        self.loading_label.pack_forget()
+    def _on_bind_result(self, success):
+        # Runs on the Tk main thread (dispatched via root.after).
         if success:
             self.show_diagnostic_menu()
         else:
-            self.status_label.config(text="", fg="red")
-            messagebox.showerror("Binding Failed", "Could not bind the device. Wrong password.")
+            messagebox.showerror(
+                "Binding Failed",
+                "Could not bind the device. Check the password and try again.",
+            )
 
     def show_diagnostic_menu(self):
         for widget in self.main_frame.winfo_children():
@@ -297,9 +304,7 @@ class LibreDiagnosticGUI:
         self.loading_label = tk.Label(right_frame, text="", font=("Helvetica", 12), fg="gray", bg="#ffffff")
         self.loading_label.pack(pady=5)
 
-        self.loading = True
-        threading.Thread(target=self.animate_loading, args=("Fetching Live Data",)).start()
-        threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
+        self._start_live_fetch(left_frame)
 
         rerun_button = tk.Button(right_frame, text="Rerun", command=lambda: self.rerun_live_data(left_frame), **self.button_style)
         rerun_button.pack(pady=(20, 10))
@@ -310,34 +315,36 @@ class LibreDiagnosticGUI:
         exit_button = tk.Button(right_frame, text="Exit", command=self.root.quit, **self.button_style)
         exit_button.pack()
 
-    def fetch_and_display_live_data(self, left_frame):
-        try:
-            data = fetch_live_data("/dev/rfcomm0")
+    def _start_live_fetch(self, left_frame):
+        self.loading_label.pack(pady=5)
+        self._spinner = TkSpinner(self.root, self.loading_label, "Fetching Live Data")
+        self._spinner.start()
+        run_async(
+            self.root,
+            work=lambda: fetch_live_data("/dev/rfcomm0"),
+            on_success=lambda data: self._render_live_data(left_frame, data),
+            on_error=lambda e: self.live_data_label.config(text="Error fetching data."),
+            on_done=self._stop_spinner,
+        )
 
-            def show_value(label):
-                value = data.get(label, "N/A")
-                self.live_data_label.config(text=f"{label}:\n{value}")
+    def _render_live_data(self, left_frame, data):
+        # Runs on the Tk main thread (dispatched via root.after).
+        for widget in left_frame.winfo_children():
+            widget.destroy()
+        for label in data.keys():
+            tk.Button(
+                left_frame,
+                text=label,
+                command=lambda l=label: self._show_live_value(data, l),
+                **self.button_style,
+            ).pack(pady=5)
+        self.live_data_label.config(text="Select a data point to view")
 
-            for widget in left_frame.winfo_children():
-                widget.destroy()
-
-            for label in data.keys():
-                tk.Button(left_frame, text=label, command=lambda l=label: show_value(l), **self.button_style).pack(pady=5)
-
-            self.live_data_label.config(text="Select a data point to view")
-
-        except Exception as e:
-            print(f"❌ Error in fetch_and_display_live_data: {e}")
-            self.live_data_label.config(text="Error fetching data.")
-        finally:
-            self.loading = False
-            self.loading_label.pack_forget()
+    def _show_live_value(self, data, label):
+        self.live_data_label.config(text=f"{label}:\n{data.get(label, 'N/A')}")
 
     def rerun_live_data(self, left_frame):
-        self.loading = True
-        self.loading_label.pack(pady=5)
-        threading.Thread(target=self.animate_loading, args=("Fetching Live Data",)).start()
-        threading.Thread(target=self.fetch_and_display_live_data, args=(left_frame,)).start()
+        self._start_live_fetch(left_frame)
 
     def brand_placeholder(self):
         from gui.brand_interface import BrandInterface
