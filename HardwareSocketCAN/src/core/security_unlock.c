@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <arpa/inet.h>
 #include "../../lib/uds_iso14229.h"
 #include "../../lib/iso_tp_stack.h"
 

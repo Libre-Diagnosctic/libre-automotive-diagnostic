@@ -11,30 +11,38 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "../../driver/obd_ioctl.h" /* Required for vci_shared_mem_t definition */
-
-/* Master PID Registry Bound (Synchronized with api/diagnostic_db.csv constraints) */
-#define MASTER_PID_COUNT    4U
-
-/**
- * @struct obd_pid_definition_t
- * @brief Layout architecture definition for programmatic database tracking items
- */
-typedef struct {
-    uint8_t     pid_id;              /**< Physical parameter identifier matching J1979 specs */
-    const char *description;         /**< Alphanumeric human-readable label reference context */
-    const char *unit;                /**< Standardized scientific metric system symbol label */
-} obd_pid_definition_t;
-
-/* Global reference array exported from the mathematical compilation layout mapping stack */
-extern const obd_pid_definition_t MASTER_PID_TABLE[MASTER_PID_COUNT];
+#include "../../driver/obd_ioctl.h"   /* Required for vci_shared_mem_t definition */
+#include "../../lib/obd_pids_db.h"    /* Master PID registry + obd_pid_definition_t */
+#include "../../lib/obd_dtc_decoder.h"/* DTC decode helpers                        */
 
 /**
- * @brief Memory-bounded formatting engine parsing whole structures into JSON arrays
- * @param shm Strict const pointer referencing the zero-copy kernel shared memory block
- * @param output Target character pointer memory coordinate for text stream expansion
- * @param max_len Pre-allocated static size boundary limit to prevent memory overruns
+ * @brief Formats the full engineering dictionary payload as a JSON array
  */
 void json_format_all_pids(const vci_shared_mem_t *shm, char *output, size_t max_len);
+
+/**
+ * @brief Compact JSON object for a single diagnostic parameter
+ */
+void json_format_single_pid(uint8_t pid_id, float value, char *output, size_t max_len);
+
+/**
+ * @brief Full system status object (voltage, bus load, errors, trip registers)
+ */
+void json_format_status(const vci_shared_mem_t *shm, char *output, size_t max_len);
+
+/**
+ * @brief Discovered ECU inventory array
+ */
+void json_format_ecu_scan(const vci_shared_mem_t *shm, char *output, size_t max_len);
+
+/**
+ * @brief First ECU VIN / calibration identification object
+ */
+void json_format_vehicle_info(const vci_shared_mem_t *shm, char *output, size_t max_len);
+
+/**
+ * @brief Trip aggregate registers object
+ */
+void json_format_trip(const vci_shared_mem_t *shm, char *output, size_t max_len);
 
 #endif /* JSON_FORMATTER_H */

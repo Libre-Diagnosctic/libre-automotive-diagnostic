@@ -60,9 +60,13 @@ int32_t vci_immo_authenticate(int32_t fd, uint8_t secret_table_idx) {
     printf("[IMMO] Initiating High-Security Challenge-Response Authentication sequence...\n");
 
     /* 1. Dispatch Security Access Seed Request (Service 0x27 Sub-function 0x61) */
-    if (uds_security_access_request_seed(fd, 0x61U, challenge) < 0) {
+    uint8_t seed_len = IMMO_CHALLENGE_LEN;
+    if (uds_security_access_request_seed(fd, 0x61U, challenge, &seed_len) < 0) {
         fprintf(stderr, "[IMMO-ERROR] Seed generation aborted by target ECU node.\n");
         return -1;
+    }
+    if (seed_len > IMMO_CHALLENGE_LEN) {
+        seed_len = IMMO_CHALLENGE_LEN;
     }
 
     /* 2. Cryptographic Execution Pass - Pass seed array into hardware software crypto bridge */

@@ -66,14 +66,15 @@ float battery_estimate_soh(float v_static, float v_crank) {
  */
 void battery_health_monitor_update(automotive_data_t *shm) {
     /* Използваме PID 0x42 (Control Module Voltage) за прецизно измерване */
-    uint8_t *raw_volt = shm->raw_pids[0x42].bytes;
-    float v_batt = ((raw_volt[0] * 256.0f) + raw_volt[1]) / 1000.0f;
+    if ((shm->pid_db[0x42].is_valid != 0U) && (shm->pid_db[0x42].len >= 2U)) {
+        const uint8_t *raw_volt = shm->pid_db[0x42].bytes;
+        float v_batt = ((raw_volt[0] * 256.0f) + raw_volt[1]) / 1000.0f;
+        shm->battery_voltage = v_batt;
 
-    shm->battery_voltage = v_batt;
-
-    /* Детекция на състоянието на алтернатора */
-    if (shm->ignition_on && v_batt < ALTERNATOR_MIN_V) {
-        shm->error_count++; /* Low charging system output */
+        /* Детекция на състоянието на алтернатора */
+        if ((shm->ignition_on != 0U) && (v_batt < ALTERNATOR_MIN_V)) {
+            shm->error_count++; /* Low charging system output */
+        }
     }
 }
 

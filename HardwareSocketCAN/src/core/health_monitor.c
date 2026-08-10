@@ -9,7 +9,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
 #include "../../driver/obd_ioctl.h"
+#include "../../lib/logging.h"
+#include "../analysis/analysis_engine.h"
+#include "../analysis/battery_health.h"
 
 /* Дефиниции на критични прагове */
 #define THERMAL_CRITICAL_TEMP 80.0f  /* Градуси Целзий */
@@ -38,27 +42,39 @@ static float get_system_temperature(void) {
  */
 void *health_monitor_run(void *arg) {
     automotive_data_t *shm = (automotive_data_t *)arg;
-    printf("[HEALTH] Monitoring Engine started.\n");
+    LOG_INFO("HEALTH", "Monitoring Engine started.");
 
     while (1) {
+        /* 0. Analytics tick: battery chemistry, VIN identification, uptime */
+        battery_health_monitor_update(shm);
+        analysis_tick(shm);
+
         /* 1. Мониторинг на захранването */
         if (shm->battery_voltage < VOLTAGE_CRITICAL_LOW) {
-            fprintf(stderr, "[ALARM] Critical Low Voltage: %.2fV\n", shm->battery_voltage);
+            LOG_ERROR("HEALTH", "Critical Low Voltage: %.2fV", shm->battery_voltage);
+            shm->status_mask |= VCI_STAT_LOW_VOLTAGE;
             /* Възможна логика за безопасно заспиване */
-        } else if (shm->battery_voltage > VOLTAGE_CRITICAL_HIGH) {
-            fprintf(stderr, "[ALARM] Overvoltage Detected: %.2fV\n", shm->battery_voltage);
+        } else {
+            shm->status_mask &= ~VCI_STAT_LOW_VOLTAGE;
+        }
+        if (shm->battery_voltage > VOLTAGE_CRITICAL_HIGH) {
+            LOG_ERROR("HEALTH", "Overvoltage Detected: %.2fV", shm->battery_voltage);
         }
 
         /* 2. Термална защита */
         float cpu_temp = get_system_temperature();
+        shm->cpu_temp = cpu_temp;
         if (cpu_temp > THERMAL_CRITICAL_TEMP) {
-            fprintf(stderr, "[ALARM] System Overheating: %.1fC. Throttling commands...\n", cpu_temp);
+            LOG_ERROR("HEALTH", "System Overheating: %.1fC. Throttling commands...", cpu_temp);
+            shm->status_mask |= VCI_STAT_OVERHEAT;
             /* Ограничаване на скоростта на запитване (Polling rate) */
+        } else {
+            shm->status_mask &= ~VCI_STAT_OVERHEAT;
         }
 
         /* 3. Мониторинг на шината (CAN Bus Health) */
         if (shm->bus_load_pct > BUS_LOAD_HIGH_LIMIT) {
-            fprintf(stderr, "[ALARM] CAN Bus Overload: %d%%\n", shm->bus_load_pct);
+            LOG_ERROR("HEALTH", "CAN Bus Overload: %d%%", shm->bus_load_pct);
             shm->mil_active = 1; // Визуализираме предупреждение на таблото
         }
 

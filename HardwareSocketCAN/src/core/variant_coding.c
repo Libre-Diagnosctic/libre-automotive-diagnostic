@@ -35,33 +35,25 @@ int vci_execute_variant_coding(int fd, uint16_t did, uint16_t byte_offset, uint8
     // if (vci_security_unlock(fd, 0x01) != 0) return -2;
 
     /* 3. Прочитане на текущата конфигурация (Read Data By Identifier) */
-    if (uds_read_data_by_id(fd, did) < 0) return -3;
-    
-    int len = isotp_stack_receive(fd, buffer, MAX_CODING_DATA);
+    int len = uds_read_data_by_id(fd, did, buffer, MAX_CODING_DATA);
     if (len <= 3 || buffer[0] != 0x62) return -4; // 0x62 = Positive Response
 
-    data_len = len - 3;
+    data_len = (uint16_t)(len - 3);
     uint8_t *coding_data = &buffer[3];
 
     /* 4. Модификация на битовете (Modify) */
     if (byte_offset >= data_len) return -5;
     
-    coding_data[byte_offset] &= ~bit_mask;          /* Изчистване на старите битове */
-    coding_data[byte_offset] |= (new_val & bit_mask); /* Прилагане на новите битове */
+    coding_data[byte_offset] &= (uint8_t)~bit_mask;            /* Изчистване на старите битове */
+    coding_data[byte_offset] |= (uint8_t)(new_val & bit_mask); /* Прилагане на новите битове */
 
     /* 5. Запис на новата конфигурация (Write Data By Identifier - 0x2E) */
     printf("[CODING] Writing modified data to ECU...\n");
     if (uds_write_data_by_id(fd, did, coding_data, data_len) < 0) return -6;
 
-    /* 6. Потвърждение на записа */
-    len = isotp_stack_receive(fd, buffer, MAX_CODING_DATA);
-    if (len >= 3 && buffer[0] == 0x6E) { // 0x6E = Positive Write Response
-        printf("[CODING] Success! ECU updated and coding applied.\n");
-        return 0;
-    }
-
-    fprintf(stderr, "[CODING] Write failed or rejected by ECU.\n");
-    return -7;
+    /* 6. Потвърждение на записа (положителният отговор се валидира вътрешно) */
+    printf("[CODING] Success! ECU updated and coding applied.\n");
+    return 0;
 }
 
 /**

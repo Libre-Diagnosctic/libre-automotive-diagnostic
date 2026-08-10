@@ -7,6 +7,7 @@
 #include <linux/can/fd.h>
 #include <linux/can/dev.h>
 #include <linux/skbuff.h>
+#include <linux/string.h>
 #include "obd_ioctl.h"
 
 /**
